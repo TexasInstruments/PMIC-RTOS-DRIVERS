@@ -1973,9 +1973,9 @@ static int32_t PWR_setLdoCtrl(const Pmic_Handle_t *handle, const Pmic_PwrLdoCfg_
         status = Pmic_ioRxByte(handle, PMIC_LDO_CTRL_REG, &regData);
     }
 
-    if (status == PMIC_ST_SUCCESS)
+    if (status == PMIC_ST_SUCCESS) /* DA_JUSTIFY: PMICDRV-2356 */
     {
-        status = PWR_applyLdoCtrlFields(&regData, ldoCfg);
+        status = PWR_applyLdoCtrlFields(&regData, ldoCfg); /* DA_JUSTIFY: PMICDRV-2356 */
     }
 
     // Write new register value back to PMIC
