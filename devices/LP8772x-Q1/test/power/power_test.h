@@ -231,7 +231,10 @@ extern "C" {
     PLATFORM_RUN_TEST(test_neg_power_powerSetVoutCfg_unsupportedRegulator); \
     PLATFORM_RUN_TEST(test_neg_power_pwr_setIlimCfg_resourceOutOfBounds); \
     PLATFORM_RUN_TEST(test_neg_power_setPgLevel_invalidResource); \
-    PLATFORM_RUN_TEST(test_neg_power_setVoltage_invalidResource)
+    PLATFORM_RUN_TEST(test_neg_power_setVoltage_invalidResource); \
+    PLATFORM_RUN_TEST(test_neg_power_pwrSetResourceCfg_readModifyWrite_writeFail); \
+    PLATFORM_RUN_TEST(test_neg_power_pwrSetResourceCfg_setModeCfgLdoLs1_writeFail); \
+    PLATFORM_RUN_TEST(test_neg_power_pwrSetResourceCfg_setModeCfgLs2Vmon2_writeFail)
 
 /* Test: TC-POWER-0023 */
 #define POWER_TEST_PWRSETRESOURCECFG() \
@@ -269,7 +272,10 @@ extern "C" {
     PLATFORM_RUN_TEST(test_neg_power_pwr_getVoltageCfg_resourceOutOfBounds); \
     PLATFORM_RUN_TEST(test_neg_power_pwr_invalidModeCombination_ldoLs1Vmon1); \
     PLATFORM_RUN_TEST(test_neg_power_pwr_invalidModeCombination_ldoLs1Vmon1_lswOnly); \
-    PLATFORM_RUN_TEST(test_neg_power_pwr_invalidModeCombination_ldoLs1Vmon1_bypVmonOnly)
+    PLATFORM_RUN_TEST(test_neg_power_pwr_invalidModeCombination_ldoLs1Vmon1_bypVmonOnly); \
+    PLATFORM_RUN_TEST(test_neg_power_pwrGetResourceCfg_getModeCfgLdoLs1_firstReadFail); \
+    PLATFORM_RUN_TEST(test_neg_power_pwrGetResourceCfg_getModeCfgLdoLs1_secondReadFail); \
+    PLATFORM_RUN_TEST(test_neg_power_pwrGetResourceCfg_getModeCfgLs2Vmon2_readFail)
 
 /* Test: TC-POWER-0024 */
 #define POWER_TEST_PWRGETRESOURCECFG() \
@@ -485,7 +491,7 @@ extern "C" {
     POWER_TEST_NEG_PWRGETSEQUENCECFGS()
 
 /* ======================================================================== */
-/*       Test APIs: pwrSetThermalCfg, pwrGetThermalCfg                     */
+/*           Test APIs: pwrSetThermalCfg, pwrGetThermalCfg                  */
 /* ======================================================================== */
 
 #define POWER_TEST_POS_PWRSETTHERMALCFG() \
@@ -501,13 +507,7 @@ extern "C" {
     PLATFORM_RUN_TEST(test_neg_power_thermal_invalid_tsdOrdLvl); \
     PLATFORM_RUN_TEST(test_neg_power_thermal_invalid_twarnConfig); \
     PLATFORM_RUN_TEST(test_neg_power_thermal_no_valid_params); \
-    PLATFORM_RUN_TEST(test_neg_power_pwrGetThermalCfg_ioRxByteCSFail); \
-    PLATFORM_RUN_TEST(test_neg_power_pwrSetResourceCfg_readModifyWrite_writeFail); \
-    PLATFORM_RUN_TEST(test_neg_power_pwrSetResourceCfg_setModeCfgLdoLs1_writeFail); \
-    PLATFORM_RUN_TEST(test_neg_power_pwrSetResourceCfg_setModeCfgLs2Vmon2_writeFail); \
-    PLATFORM_RUN_TEST(test_neg_power_pwrGetResourceCfg_getModeCfgLdoLs1_firstReadFail); \
-    PLATFORM_RUN_TEST(test_neg_power_pwrGetResourceCfg_getModeCfgLdoLs1_secondReadFail); \
-    PLATFORM_RUN_TEST(test_neg_power_pwrGetResourceCfg_getModeCfgLs2Vmon2_readFail)
+    PLATFORM_RUN_TEST(test_neg_power_pwrGetThermalCfg_ioRxByteCSFail)
 
 /* Test: TC-POWER-0031 */
 #define POWER_TEST_PWRSETTHERMALCFG() \

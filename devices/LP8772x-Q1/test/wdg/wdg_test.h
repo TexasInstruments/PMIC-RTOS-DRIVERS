@@ -122,7 +122,12 @@ extern "C" {
     PLATFORM_RUN_TEST(test_neg_wdg_wdgSetCfg_invalidQaLfsr); \
     PLATFORM_RUN_TEST(test_neg_wdg_wdgSetCfg_invalidQaQuesSeed); \
     PLATFORM_RUN_TEST(test_neg_wdg_wdgSetCfg_whenDisabled); \
-    PLATFORM_RUN_TEST(test_neg_wdg_wdgSetCfg_whenNotInLongWindow)
+    PLATFORM_RUN_TEST(test_neg_wdg_wdgSetCfg_whenNotInLongWindow); \
+    PLATFORM_RUN_TEST(test_neg_wdg_wdgSetCfg_thresholds_readFail); \
+    PLATFORM_RUN_TEST(test_neg_wdg_wdgSetCfg_qaConfigurations_readFail); \
+    PLATFORM_RUN_TEST(test_neg_wdg_wdgSetCfg_resetEnableCfg_readFail); \
+    PLATFORM_RUN_TEST(test_neg_wdg_wdgSetCfg_checkCfgState_enableStateReadFail); \
+    PLATFORM_RUN_TEST(test_neg_wdg_wdgSetCfg_checkCfgState_returnToLongWindowReadFail)
 
 /* Test: TC-WDG-0033 */
 #define WDG_TEST_WDGSETCFG() \
@@ -135,7 +140,10 @@ extern "C" {
 
 #define WDG_TEST_NEG_WDGGETCFG() \
     PLATFORM_RUN_TEST(test_neg_wdg_wdgGetCfg_nullHandle); \
-    PLATFORM_RUN_TEST(test_neg_wdg_wdgGetCfg_nullConfig)
+    PLATFORM_RUN_TEST(test_neg_wdg_wdgGetCfg_nullConfig); \
+    PLATFORM_RUN_TEST(test_neg_wdg_wdgGetCfg_longWindowInterval_readFail); \
+    PLATFORM_RUN_TEST(test_neg_wdg_wdgGetCfg_window1Interval_readFail); \
+    PLATFORM_RUN_TEST(test_neg_wdg_wdgGetCfg_window2Interval_readFail)
 
 /* Test: TC-WDG-0034 */
 #define WDG_TEST_WDGGETCFG() \
@@ -276,7 +284,9 @@ extern "C" {
     PLATFORM_RUN_TEST(test_pos_wdg_wdgQaWriteAnswer_qaFdbk3)
 
 #define WDG_TEST_NEG_WDGQAWRITEANSWER() \
-    PLATFORM_RUN_TEST(test_neg_wdg_wdgQaWriteAnswer_nullHandle)
+    PLATFORM_RUN_TEST(test_neg_wdg_wdgQaWriteAnswer_nullHandle); \
+    PLATFORM_RUN_TEST(test_neg_wdg_wdgQaWriteAnswer_getQuestionAndAnswer_readFail); \
+    PLATFORM_RUN_TEST(test_neg_wdg_wdgQaWriteAnswer_getQuestionAndAnswer_intTopStatusClear)
 
 /* Test: TC-WDG-0043 */
 #define WDG_TEST_WDGQAWRITEANSWER() \
@@ -319,17 +329,7 @@ extern "C" {
     PLATFORM_RUN_TEST(test_pos_wdg_wdgExtractAnsCntAndQues_intTopStatusClear); \
     PLATFORM_RUN_TEST(test_neg_wdg_wdgWriteAnswer_nullHandle); \
     PLATFORM_RUN_TEST(test_neg_wdg_wdgWriteAnswer_nullParam); \
-    PLATFORM_RUN_TEST(test_pos_wdg_wdgWriteAnswer_success); \
-    PLATFORM_RUN_TEST(test_neg_wdg_wdgSetCfg_thresholds_readFail); \
-    PLATFORM_RUN_TEST(test_neg_wdg_wdgSetCfg_qaConfigurations_readFail); \
-    PLATFORM_RUN_TEST(test_neg_wdg_wdgSetCfg_resetEnableCfg_readFail); \
-    PLATFORM_RUN_TEST(test_neg_wdg_wdgGetCfg_longWindowInterval_readFail); \
-    PLATFORM_RUN_TEST(test_neg_wdg_wdgQaWriteAnswer_getQuestionAndAnswer_readFail); \
-    PLATFORM_RUN_TEST(test_neg_wdg_wdgSetCfg_checkCfgState_enableStateReadFail); \
-    PLATFORM_RUN_TEST(test_neg_wdg_wdgSetCfg_checkCfgState_returnToLongWindowReadFail); \
-    PLATFORM_RUN_TEST(test_neg_wdg_wdgQaWriteAnswer_getQuestionAndAnswer_intTopStatusClear); \
-    PLATFORM_RUN_TEST(test_neg_wdg_wdgGetCfg_window1Interval_readFail); \
-    PLATFORM_RUN_TEST(test_neg_wdg_wdgGetCfg_window2Interval_readFail)
+    PLATFORM_RUN_TEST(test_pos_wdg_wdgWriteAnswer_success)
 
 /* Test: TC-WDG-0063 */
 #define WDG_TEST_LP8772X_SPECIFIC() \
