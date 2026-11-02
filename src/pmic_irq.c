@@ -347,12 +347,16 @@ static int32_t IRQ_readSafetyErrStat(const Pmic_CoreHandle_t *pmicHandle, Pmic_I
 
         // Read SAFETY_ERR_STAT_2 register
         status = Pmic_ioRxByte_CS(pmicHandle, PMIC_CMD_RD_SAFETY_ERR_STAT_2, &regData);
+
     }
 
     if (status == PMIC_ST_SUCCESS)
     {
         // Set the corresponding bit in irqStat
-        IRQ_setIntrStat(irqStat, PMIC_IRQ_DIAG_STATE_TO);
+        if (Pmic_getBitField_b(regData, DIAG_STATE_TO_SHIFT))
+        {
+            IRQ_setIntrStat(irqStat, PMIC_IRQ_DIAG_STATE_TO);
+        }
     }
 
     return status;

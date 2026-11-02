@@ -78,7 +78,7 @@ extern "C"
 #define PMIC_CMD_WR_SAFETY_CFG_CRC          ((uint8_t)0x63U)
 #define PMIC_CMD_WR_SAFETY_ERR_STAT_1       ((uint8_t)0xA9U)
 #define PMIC_CMD_WR_SAFETY_ERR_CFG_1        ((uint8_t)0xDBU)
-#define PMIC_CMD_WR_SAFETY_ERR_CFG_2        ((uint8_t)0xC9U)
+#define PMIC_CMD_WR_SAFETY_ERR_CFG_2        ((uint8_t)0xCFU)
 #define PMIC_CMD_WR_SAFETY_CHECK_CTRL       ((uint8_t)0x93U)
 #define PMIC_CMD_WR_SAFETY_FUNC_CFG         ((uint8_t)0x35U)
 #define PMIC_CMD_WR_SAFETY_BIST_CTRL        ((uint8_t)0x9FU)

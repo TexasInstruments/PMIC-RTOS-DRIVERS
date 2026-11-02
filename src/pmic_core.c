@@ -390,7 +390,7 @@ static int32_t CORE_getAutoBistDisAndSafeLockToDis(const Pmic_CoreHandle_t *pmic
         status = Pmic_ioRxByte(pmicHandle, PMIC_CMD_RD_SAFETY_FUNC_CFG, &regData);
 
         // Extract SAFE_LOCK_TO_DIS bit field
-        if (status == PMIC_ST_SUCCESS)
+        if (Pmic_validParamCheck(deviceCfg->validParams, PMIC_DISABLE_SAFE_LOCK_TIMEOUT_VALID))
         {
             deviceCfg->disableSafeLockTimeout = Pmic_getBitField_b(regData, SAFE_LOCK_TO_DIS_SHIFT);
         }
