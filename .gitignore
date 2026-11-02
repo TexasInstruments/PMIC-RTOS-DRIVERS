@@ -1,3 +1,64 @@
-lib/*
-*.d
+# Build artifacts
 *.o
+*.d
+lib/
+*.so
+*.a
+*.exe
+
+# Coverage artifacts
+*.gcov
+*.gcda
+*.gcno
+*.profraw
+*.profdata
+coverage/
+**/coverage/
+coverage_*.txt
+**/coverage_report*.txt
+coverage_report/
+
+# Build logs
+*.log
+build_log.txt
+
+# Test artifacts
+*.gcna
+unity.o
+
+# Embedded artifacts (legacy, in case old builds exist)
+*.bin
+*.elf
+*.map
+*.lst
+
+# LDRA artifacts
+*.exh
+inszt_*.c
+*.backup
+
+# Documentation
+*.pdf
+
+# Doxygen output
+docs/html/
+docs/latex/
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Editor and IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+*.sublime-project
+*.sublime-workspace
+
+# Tags files
+tags
+TAGS
+test_runner

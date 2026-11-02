@@ -1,0 +1,809 @@
+/******************************************************************************
+ * Copyright (c) 2026 Texas Instruments Incorporated - http://www.ti.com
+ *
+ *  Redistribution and use in source and binary forms, with or without
+ *  modification, are permitted provided that the following conditions
+ *  are met:
+ *
+ *    Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions and the following disclaimer.
+ *
+ *    Redistributions in binary form must reproduce the above copyright
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the
+ *    distribution.
+ *
+ *    Neither the name of Texas Instruments Incorporated nor the names of
+ *    its contributors may be used to endorse or promote products derived
+ *    from this software without specific prior written permission.
+ *
+ *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ *  "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+ *  LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+ *  A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+ *  OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+ *  SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+ *  LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+ *  DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+ *  THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ *  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ *  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ *
+ *****************************************************************************/
+
+/* ========================================================================== */
+/*                              Include Files                                 */
+/* ========================================================================== */
+
+#include "pmic_test.h"
+#include "test_constants.h"
+
+#ifdef BUILD_MOCK
+#include "test_inject.h"
+#endif
+
+/* ========================================================================== */
+/*                             Macros & Typedefs                              */
+/* ========================================================================== */
+
+/* Test macros moved to pmic_test.h */
+
+/* ========================================================================== */
+/*                           Function Declarations                            */
+/* ========================================================================== */
+
+static void pmicTest_initPmicCfg(Pmic_HandleCfg_t *pmicCfg);
+static void pmicTest_nullParamPmicInit(const char *param);
+
+/* ========================================================================== */
+/*                             Global Variables                               */
+/* ========================================================================== */
+
+static Pmic_Handle_t pmicHandle = {0U};
+
+/* ========================================================================== */
+/*                           Function Definitions                             */
+/* ========================================================================== */
+
+void pmic_test(void *args)
+{
+    platform_init();
+
+    testTimer_startModule("PMIC");
+
+    platform_printString("\r\n");
+    platform_printString("PMIC_TEST\r\n");
+    platform_printString("---------\r\n\r\n");
+
+    platform_setupTests();
+    PMIC_TEST_RUN_ALL();
+    platform_tearDownTests();
+
+    testTimer_endModule();
+
+    platform_deinit();
+}
+
+static void pmicTest_initPmicCfg(Pmic_HandleCfg_t *pmicCfg)
+{
+    pmicCfg->validParams = PMIC_CFG_INIT_I2C_ADDR0_VALID |
+                           PMIC_CFG_INIT_COMM_HANDLE_0_VALID |
+                           PMIC_CFG_INIT_IO_READ_VALID |
+                           PMIC_CFG_INIT_IO_WRITE_VALID |
+                           PMIC_CFG_INIT_CRITICAL_SECTION_START_VALID |
+                           PMIC_CFG_INIT_CRITICAL_SECTION_STOP_VALID |
+                           PMIC_CFG_INIT_IRQ_RESPONSE_CALLBACK_VALID |
+                           PMIC_CFG_INIT_TIMER_WAIT_MS_VALID;
+    pmicCfg->i2cAddr0 = 0x60U;
+    pmicCfg->commHandle0 = platform_getCommHandle();
+    pmicCfg->ioRead = &platform_rxByte;
+    pmicCfg->ioWrite = &platform_txByte;
+    pmicCfg->criticalSectionStart = &platform_critSecStart;
+    pmicCfg->criticalSectionStop = &platform_critSecStop;
+    pmicCfg->irqResponseCallback = &platform_irqResponse;
+    pmicCfg->timerWaitMs = &testUtils_timerWaitMs;
+}
+
+void test_neg_pmic_init_nullHandle(void)
+{
+    // Pass NULL pmicHandle into Pmic_init()
+    Pmic_HandleCfg_t pmicCfg = {0U};
+    pmicTest_initPmicCfg(&pmicCfg);
+    int32_t status = Pmic_init(NULL, &pmicCfg);
+    PLATFORM_ASSERT(status == PMIC_ST_ERR_NULL_PARAM);
+}
+
+void test_neg_pmic_init_nullPmicCfg(void)
+{
+    // Pass NULL pmicCfg into Pmic_init()
+    int32_t status = Pmic_init(&pmicHandle, NULL);
+    PLATFORM_ASSERT(status == PMIC_ST_ERR_NULL_PARAM);
+}
+
+static void pmicTest_nullParamPmicInit(const char *param)
+{
+    Pmic_HandleCfg_t pmicCfg = {0U};
+    pmicTest_initPmicCfg(&pmicCfg);
+
+    if (strcmp(param, "commHandle0") == 0U) {
+        pmicCfg.commHandle0 = NULL;
+    } else if (strcmp(param, "ioRead") == 0U) {
+        pmicCfg.ioRead = NULL;
+    } else if (strcmp(param, "ioWrite") == 0U) {
+        pmicCfg.ioWrite = NULL;
+    } else if (strcmp(param, "criticalSectionStart") == 0U) {
+        pmicCfg.criticalSectionStart = NULL;
+    } else if (strcmp(param, "criticalSectionStop") == 0U) {
+        pmicCfg.criticalSectionStop = NULL;
+    } else {
+        PLATFORM_ASSERT(0U);
+    }
+
+    int32_t status = Pmic_init(&pmicHandle, &pmicCfg);
+
+    /* Function pointers return PMIC_ST_ERR_NULL_FPTR, other parameters return PMIC_ST_ERR_NULL_PARAM */
+    if (strcmp(param, "commHandle0") == 0U) {
+        PLATFORM_ASSERT(status == PMIC_ST_ERR_NULL_PARAM);
+    } else {
+        /* ioRead, ioWrite, criticalSectionStart, criticalSectionStop are function pointers */
+        PLATFORM_ASSERT(status == PMIC_ST_ERR_NULL_FPTR);
+    }
+}
+
+void test_neg_pmic_init_nullCommHandle(void)
+{
+    // Pass NULL commHandle0 into Pmic_init()
+    pmicTest_nullParamPmicInit("commHandle0");
+}
+
+void test_neg_pmic_init_nullIoRead(void)
+{
+    // Pass NULL ioRead into Pmic_init()
+    pmicTest_nullParamPmicInit("ioRead");
+}
+
+void test_neg_pmic_init_nullIoWrite(void)
+{
+    // Pass NULL ioWrite into Pmic_init()
+    pmicTest_nullParamPmicInit("ioWrite");
+}
+
+void test_neg_pmic_init_nullCritSecStart(void)
+{
+    // Pass NULL criticalSectionStart into Pmic_init()
+    pmicTest_nullParamPmicInit("criticalSectionStart");
+}
+
+void test_neg_pmic_init_nullCritSecStop(void)
+{
+    // Pass NULL criticalSectionStop into Pmic_init()
+    pmicTest_nullParamPmicInit("criticalSectionStop");
+}
+
+void test_neg_pmic_deinit_nullHandle(void)
+{
+    // Pass NULL pmicHandle into Pmic_deinit()
+    int32_t status = Pmic_deinit(NULL);
+    PLATFORM_ASSERT(status == PMIC_ST_ERR_NULL_PARAM);
+}
+
+void test_pos_pmic_init(void)
+{
+    // Initialize PMIC LLD
+    Pmic_HandleCfg_t pmicCfg = {0U};
+    pmicTest_initPmicCfg(&pmicCfg);
+    int32_t status = Pmic_init(&pmicHandle, &pmicCfg);
+    PLATFORM_ASSERT(status == PMIC_ST_SUCCESS);
+}
+
+void test_pos_pmic_deinit(void)
+{
+    // De-initialize PMIC LLD
+    int32_t status = Pmic_deinit(&pmicHandle);
+    PLATFORM_ASSERT(status == PMIC_ST_SUCCESS);
+    PLATFORM_ASSERT(pmicHandle.drvInitStat == 0U);
+    PLATFORM_ASSERT(pmicHandle.i2cAddr0 == 0U);
+    PLATFORM_ASSERT(pmicHandle.devRev == 0U);
+    PLATFORM_ASSERT(pmicHandle.nvmCode == 0U);
+    PLATFORM_ASSERT(pmicHandle.nvmRev == 0U);
+    PLATFORM_ASSERT(pmicHandle.devSiRev == 0U);
+    PLATFORM_ASSERT(pmicHandle.crcEnable == PMIC_DISABLE);
+    PLATFORM_ASSERT(pmicHandle.commHandle0 == NULL);
+    PLATFORM_ASSERT(pmicHandle.ioRead == NULL);
+    PLATFORM_ASSERT(pmicHandle.ioWrite == NULL);
+    PLATFORM_ASSERT(pmicHandle.criticalSectionStart == NULL);
+    PLATFORM_ASSERT(pmicHandle.criticalSectionStop == NULL);
+    PLATFORM_ASSERT(pmicHandle.irqResponseCallback == NULL);
+}
+
+void test_pos_pmic_init_withRetryCnt(void)
+{
+    // Initialize with PMIC_CFG_INIT_RETRY_CNT_VALID set
+    Pmic_HandleCfg_t pmicCfg = {0U};
+    Pmic_Handle_t handle = {0U};
+
+    pmicTest_initPmicCfg(&pmicCfg);
+
+    // Add retry count configuration
+    pmicCfg.validParams |= PMIC_CFG_INIT_RETRY_CNT_VALID;
+    pmicCfg.retryCnt = 5U;
+
+    int32_t status = Pmic_init(&handle, &pmicCfg);
+    PLATFORM_ASSERT(status == PMIC_ST_SUCCESS);
+
+    // Verify retry count is set in handle
+    PLATFORM_ASSERT(handle.retryCnt == 5U);
+
+    // Clean up
+    status = Pmic_deinit(&handle);
+    PLATFORM_ASSERT(status == PMIC_ST_SUCCESS);
+}
+
+void test_pos_pmic_init_withRetryInterval(void)
+{
+    // Initialize with PMIC_CFG_INIT_RETRY_INTERVAL_MS_VALID set
+    Pmic_HandleCfg_t pmicCfg = {0U};
+    Pmic_Handle_t handle = {0U};
+
+    pmicTest_initPmicCfg(&pmicCfg);
+
+    // Add retry interval configuration
+    // Note: When retryIntervalMs is non-zero, timerWaitMs must also be provided
+    pmicCfg.validParams |= PMIC_CFG_INIT_RETRY_INTERVAL_MS_VALID | PMIC_CFG_INIT_TIMER_WAIT_MS_VALID;
+    pmicCfg.retryIntervalMs = 100U;
+    pmicCfg.timerWaitMs = &testUtils_timerWaitMs;
+
+    int32_t status = Pmic_init(&handle, &pmicCfg);
+    PLATFORM_ASSERT(status == PMIC_ST_SUCCESS);
+
+    // Verify retry interval is set in handle
+    PLATFORM_ASSERT(handle.retryIntervalMs == 100U);
+
+    // Clean up
+    status = Pmic_deinit(&handle);
+    PLATFORM_ASSERT(status == PMIC_ST_SUCCESS);
+}
+
+void test_pos_pmic_init_withTimerWaitMs(void)
+{
+    // Initialize with PMIC_CFG_INIT_TIMER_WAIT_MS_VALID and valid callback
+    Pmic_HandleCfg_t pmicCfg = {0U};
+    Pmic_Handle_t handle = {0U};
+
+    pmicTest_initPmicCfg(&pmicCfg);
+
+    // Add timer wait callback configuration
+    pmicCfg.validParams |= PMIC_CFG_INIT_TIMER_WAIT_MS_VALID;
+    pmicCfg.timerWaitMs = &testUtils_timerWaitMs;
+
+    int32_t status = Pmic_init(&handle, &pmicCfg);
+    PLATFORM_ASSERT(status == PMIC_ST_SUCCESS);
+
+    // Verify timer wait callback is set in handle
+    PLATFORM_ASSERT(handle.timerWaitMs == &testUtils_timerWaitMs);
+
+    // Clean up
+    status = Pmic_deinit(&handle);
+    PLATFORM_ASSERT(status == PMIC_ST_SUCCESS);
+}
+
+void test_neg_pmic_init_timerWaitNull(void)
+{
+    // Set PMIC_CFG_INIT_TIMER_WAIT_MS_VALID but pass NULL callback
+    Pmic_HandleCfg_t pmicCfg = {0U};
+    Pmic_Handle_t handle = {0U};
+
+    pmicTest_initPmicCfg(&pmicCfg);
+
+    // Set valid param flag but provide NULL callback
+    pmicCfg.validParams |= PMIC_CFG_INIT_TIMER_WAIT_MS_VALID;
+    pmicCfg.timerWaitMs = NULL;
+
+    int32_t status = Pmic_init(&handle, &pmicCfg);
+    PLATFORM_ASSERT(status == PMIC_ST_ERR_NULL_FPTR);
+}
+
+void test_neg_pmic_init_nullIrqResponseCallback(void)
+{
+    // Test NULL IRQ response callback with PMIC_CFG_INIT_IRQ_RESPONSE_CALLBACK_VALID set (lines 173-174)
+    Pmic_HandleCfg_t pmicCfg = {0U};
+    Pmic_Handle_t handle = {0U};
+
+    pmicTest_initPmicCfg(&pmicCfg);
+
+    // Set valid param flag but provide NULL callback
+    pmicCfg.validParams |= PMIC_CFG_INIT_IRQ_RESPONSE_CALLBACK_VALID;
+    pmicCfg.irqResponseCallback = NULL;
+
+    int32_t status = Pmic_init(&handle, &pmicCfg);
+    PLATFORM_ASSERT(status == PMIC_ST_ERR_NULL_FPTR);
+}
+
+void test_pos_pmic_checkHandle_validHandle(void)
+{
+    Pmic_Handle_t handle = {0U};
+    Pmic_HandleCfg_t pmicCfg = {0U};
+
+    pmicTest_initPmicCfg(&pmicCfg);
+    int32_t status = Pmic_init(&handle, &pmicCfg);
+    PLATFORM_ASSERT(status == PMIC_ST_SUCCESS);
+
+    status = Pmic_checkHandle(&handle);
+    PLATFORM_ASSERT(status == PMIC_ST_SUCCESS);
+
+    (void)Pmic_deinit(&handle);
+}
+
+void test_neg_pmic_checkHandle_nullCommHandle(void)
+{
+    // Test corrupted commHandle0 to NULL (line 411)
+    Pmic_HandleCfg_t pmicCfg = {0U};
+    Pmic_Handle_t handle = {0U};
+
+    pmicTest_initPmicCfg(&pmicCfg);
+
+    int32_t status = Pmic_init(&handle, &pmicCfg);
+    PLATFORM_ASSERT(status == PMIC_ST_SUCCESS);
+
+    // Corrupt commHandle0 to NULL
+    handle.commHandle0 = NULL;
+
+    // Try to use the corrupted handle - should fail
+    bool wdgEnabled = false;
+    status = Pmic_wdgGetEnableState(&handle, &wdgEnabled);
+    PLATFORM_ASSERT(status == PMIC_ST_ERR_NULL_PARAM);
+
+    // Restore handle for deinit
+    handle.commHandle0 = platform_getCommHandle();
+    status = Pmic_deinit(&handle);
+    PLATFORM_ASSERT(status == PMIC_ST_SUCCESS);
+}
+
+void test_neg_pmic_checkHandle_nullFptrs(void)
+{
+    // Test corrupted function pointers to NULL (line 417)
+    Pmic_HandleCfg_t pmicCfg = {0U};
+    Pmic_Handle_t handle = {0U};
+
+    pmicTest_initPmicCfg(&pmicCfg);
+
+    int32_t status = Pmic_init(&handle, &pmicCfg);
+    PLATFORM_ASSERT(status == PMIC_ST_SUCCESS);
+
+    // Corrupt ioRead to NULL
+    handle.ioRead = NULL;
+
+    // Try to use the corrupted handle - should fail
+    bool wdgEnabled = false;
+    status = Pmic_wdgGetEnableState(&handle, &wdgEnabled);
+    PLATFORM_ASSERT(status == PMIC_ST_ERR_NULL_FPTR);
+
+    // Restore handle for deinit
+    handle.ioRead = &platform_rxByte;
+    status = Pmic_deinit(&handle);
+    PLATFORM_ASSERT(status == PMIC_ST_SUCCESS);
+}
+
+void test_neg_pmic_checkHandle_nullTimerWithRetry(void)
+{
+    // Test runtime validation in Pmic_checkHandle for retryIntervalMs != 0 with NULL timer
+    // Tests line 425: (handle->retryIntervalMs != 0U) && (handle->timerWaitMs == NULL)
+    Pmic_HandleCfg_t pmicCfg = {0U};
+    Pmic_Handle_t handle = {0U};
+
+    pmicTest_initPmicCfg(&pmicCfg);
+
+    // Initialize with VALID configuration including timer
+    pmicCfg.validParams |= PMIC_CFG_INIT_RETRY_INTERVAL_MS_VALID | PMIC_CFG_INIT_TIMER_WAIT_MS_VALID;
+    pmicCfg.retryIntervalMs = 10U;  // Non-zero retry interval
+    pmicCfg.timerWaitMs = &testUtils_timerWaitMs;  // Provide timer during init
+
+    int32_t status = Pmic_init(&handle, &pmicCfg);
+    PLATFORM_ASSERT(status == PMIC_ST_SUCCESS);
+
+    // NOW corrupt the handle to have retryIntervalMs != 0 but NULL timer
+    // This tests the runtime validation in Pmic_checkHandle
+    handle.timerWaitMs = NULL;
+
+    // Try to use the corrupted handle - should fail at runtime
+    bool wdgEnabled = false;
+    status = Pmic_wdgGetEnableState(&handle, &wdgEnabled);
+    PLATFORM_ASSERT(status == PMIC_ST_ERR_NULL_FPTR);
+
+    // Restore handle for deinit
+    handle.timerWaitMs = &testUtils_timerWaitMs;
+    status = Pmic_deinit(&handle);
+    PLATFORM_ASSERT(status == PMIC_ST_SUCCESS);
+}
+
+void test_neg_pmic_checkHandle_invalidDrvInitStat(void)
+{
+    // Test corrupted drvInitStat (line 427)
+    Pmic_HandleCfg_t pmicCfg = {0U};
+    Pmic_Handle_t handle = {0U};
+
+    pmicTest_initPmicCfg(&pmicCfg);
+
+    int32_t status = Pmic_init(&handle, &pmicCfg);
+    PLATFORM_ASSERT(status == PMIC_ST_SUCCESS);
+
+    // Corrupt drvInitStat
+    handle.drvInitStat = 0U;
+
+    // Try to use the corrupted handle - should fail
+    bool wdgEnabled = false;
+    status = Pmic_wdgGetEnableState(&handle, &wdgEnabled);
+    PLATFORM_ASSERT(status == PMIC_ST_ERR_INV_HANDLE);
+
+    // Restore handle for deinit
+    handle.drvInitStat = TEST_PMIC_INIT_MAGIC;
+    status = Pmic_deinit(&handle);
+    PLATFORM_ASSERT(status == PMIC_ST_SUCCESS);
+}
+
+/* ========================================================================== */
+/*                          Coverage Tests                                   */
+/* ========================================================================== */
+
+/**
+ * @brief Test Pmic_init with NULL ioRead.
+ */
+void test_neg_pmic_init_syncMode_nullIoRead(void)
+{
+    Pmic_Handle_t handle;
+    Pmic_HandleCfg_t pmicCfg = {0U};
+
+    // Initialize with minimal valid config, but omit IO_READ_VALID
+    pmicCfg.validParams = PMIC_CFG_INIT_I2C_ADDR0_VALID |
+                          PMIC_CFG_INIT_COMM_HANDLE_0_VALID |
+                          // PMIC_CFG_INIT_IO_READ_VALID - intentionally omitted
+                          PMIC_CFG_INIT_IO_WRITE_VALID |
+                          PMIC_CFG_INIT_CRITICAL_SECTION_START_VALID |
+                          PMIC_CFG_INIT_CRITICAL_SECTION_STOP_VALID;
+    pmicCfg.i2cAddr0 = 0x60U;
+    pmicCfg.commHandle0 = platform_getCommHandle();
+    // pmicCfg.ioRead = NULL; - left NULL (default)
+    pmicCfg.ioWrite = &platform_txByte;
+    pmicCfg.criticalSectionStart = &platform_critSecStart;
+    pmicCfg.criticalSectionStop = &platform_critSecStop;
+
+    int32_t status = Pmic_init(&handle, &pmicCfg);
+    PLATFORM_ASSERT(status == PMIC_ST_ERR_NULL_FPTR);
+}
+
+/**
+ * @brief Test Pmic_init with NULL ioWrite.
+ */
+void test_neg_pmic_init_syncMode_nullIoWrite(void)
+{
+    Pmic_Handle_t handle;
+    Pmic_HandleCfg_t pmicCfg = {0U};
+
+    // Initialize with minimal valid config, but omit IO_WRITE_VALID
+    pmicCfg.validParams = PMIC_CFG_INIT_I2C_ADDR0_VALID |
+                          PMIC_CFG_INIT_COMM_HANDLE_0_VALID |
+                          PMIC_CFG_INIT_IO_READ_VALID |
+                          // PMIC_CFG_INIT_IO_WRITE_VALID - intentionally omitted
+                          PMIC_CFG_INIT_CRITICAL_SECTION_START_VALID |
+                          PMIC_CFG_INIT_CRITICAL_SECTION_STOP_VALID;
+    pmicCfg.i2cAddr0 = 0x60U;
+    pmicCfg.commHandle0 = platform_getCommHandle();
+    pmicCfg.ioRead = &platform_rxByte;
+    // pmicCfg.ioWrite = NULL; - left NULL (default)
+    pmicCfg.criticalSectionStart = &platform_critSecStart;
+    pmicCfg.criticalSectionStop = &platform_critSecStop;
+
+    int32_t status = Pmic_init(&handle, &pmicCfg);
+    PLATFORM_ASSERT(status == PMIC_ST_ERR_NULL_FPTR);
+}
+
+/**
+ * @brief Test Pmic_init with NULL criticalSectionStart.
+ */
+void test_neg_pmic_init_nullCriticalSectionStart(void)
+{
+    Pmic_Handle_t handle;
+    Pmic_HandleCfg_t pmicCfg = {0U};
+
+    pmicTest_initPmicCfg(&pmicCfg);
+
+    // NULL critical section start hook
+    pmicCfg.validParams |= PMIC_CFG_INIT_CRITICAL_SECTION_START_VALID;
+    pmicCfg.criticalSectionStart = NULL;  // Missing required hook
+
+    int32_t status = Pmic_init(&handle, &pmicCfg);
+    PLATFORM_ASSERT(status == PMIC_ST_ERR_NULL_FPTR);
+}
+
+/**
+ * @brief Test Pmic_init with NULL criticalSectionStop.
+ */
+void test_neg_pmic_init_nullCriticalSectionStop(void)
+{
+    Pmic_Handle_t handle;
+    Pmic_HandleCfg_t pmicCfg = {0U};
+
+    pmicTest_initPmicCfg(&pmicCfg);
+
+    // NULL critical section stop hook
+    pmicCfg.validParams |= PMIC_CFG_INIT_CRITICAL_SECTION_STOP_VALID;
+    pmicCfg.criticalSectionStop = NULL;  // Missing required hook
+
+    int32_t status = Pmic_init(&handle, &pmicCfg);
+    PLATFORM_ASSERT(status == PMIC_ST_ERR_NULL_FPTR);
+}
+
+void test_neg_pmic_checkHandle_nullIoWrite(void)
+{
+    // Test that the OR condition (ioRead == NULL) || (ioWrite == NULL) at
+    // pmic.c line 427 is triggered by the ioWrite == NULL branch specifically,
+    // while ioRead remains a valid function pointer.
+    Pmic_HandleCfg_t pmicCfg = {0U};
+    Pmic_Handle_t handle = {0U};
+
+    pmicTest_initPmicCfg(&pmicCfg);
+
+    int32_t status = Pmic_init(&handle, &pmicCfg);
+    PLATFORM_ASSERT(status == PMIC_ST_SUCCESS);
+
+    // Corrupt ioWrite to NULL while ioRead remains valid
+    handle.ioWrite = NULL;
+
+    // Try to use the corrupted handle - should fail with PMIC_ST_ERR_NULL_FPTR
+    bool wdgEnabled = false;
+    status = Pmic_wdgGetEnableState(&handle, &wdgEnabled);
+    PLATFORM_ASSERT(status == PMIC_ST_ERR_NULL_FPTR);
+
+    // Restore handle for deinit
+    handle.ioWrite = &platform_txByte;
+    status = Pmic_deinit(&handle);
+    PLATFORM_ASSERT(status == PMIC_ST_SUCCESS);
+}
+
+/**
+ * @brief Test Pmic_init on B1 silicon.
+ */
+void test_pos_pmic_init_b1Silicon(void)
+{
+#ifdef BUILD_MOCK
+    Pmic_Handle_t handle = {0U};
+    Pmic_HandleCfg_t pmicCfg = {0U};
+
+    pmicTest_initPmicCfg(&pmicCfg);
+
+    // Ensure the handle is de-initialized before we start
+    (void)Pmic_deinit(&pmicHandle);
+
+    // Inject bit 3 (DEVICE_PG_IDENTIFIER) into MANUFACTURING_VER register (0x04)
+    // so that getPmicInfo() reads devSiRev with bit 3 set, making isB1 == true
+    int32_t injectStatus = testInject_setRegister(0x04U, (uint8_t)(1U << 3U));
+    PLATFORM_ASSERT(injectStatus == PMIC_ST_SUCCESS);
+
+    int32_t status = Pmic_init(&handle, &pmicCfg);
+    PLATFORM_ASSERT(status == PMIC_ST_SUCCESS);
+
+    // Clean up
+    status = Pmic_deinit(&handle);
+    PLATFORM_ASSERT(status == PMIC_ST_SUCCESS);
+
+    // Restore register to zero so subsequent tests see normal silicon rev
+    (void)testInject_setRegister(0x04U, 0x00U);
+#else
+    TEST_IGNORE_MESSAGE("Test requires BUILD_MOCK for register injection");
+#endif
+}
+
+/**
+ * @brief Test Pmic_init without PMIC_CFG_INIT_I2C_ADDR0_VALID in validParams.
+ */
+void test_neg_pmic_init_noI2cAddrValid(void)
+{
+    Pmic_Handle_t handle = {0U};
+    Pmic_HandleCfg_t pmicCfg = {0U};
+
+    pmicTest_initPmicCfg(&pmicCfg);
+
+    // Remove I2C_ADDR0_VALID so setI2CConfig skips the i2cAddr0 branch
+    pmicCfg.validParams &= ~(uint32_t)PMIC_CFG_INIT_I2C_ADDR0_VALID;
+
+    // Init may succeed or fail I2C (i2cAddr0 stays 0); either is acceptable
+    int32_t status = Pmic_init(&handle, &pmicCfg);
+    // The important thing is no crash; status can be any value
+    (void)status;
+    (void)Pmic_deinit(&handle);
+}
+
+/**
+ * @brief Test Pmic_init without PMIC_CFG_INIT_COMM_HANDLE_0_VALID in validParams.
+ */
+void test_neg_pmic_init_noCommHandleValid(void)
+{
+    Pmic_Handle_t handle = {0U};
+    Pmic_HandleCfg_t pmicCfg = {0U};
+
+    pmicTest_initPmicCfg(&pmicCfg);
+
+    // Remove COMM_HANDLE_0_VALID so validateAndSetUserHandles skips the block
+    pmicCfg.validParams &= ~(uint32_t)PMIC_CFG_INIT_COMM_HANDLE_0_VALID;
+
+    // With commHandle0 not set in handle, IO operations will fail
+    int32_t status = Pmic_init(&handle, &pmicCfg);
+    (void)status;
+    (void)Pmic_deinit(&handle);
+}
+
+/**
+ * @brief Test validatePmicHandle() when criticalSectionStart is NULL.
+ */
+void test_neg_pmic_init_validateHandle_nullCritSecStart(void)
+{
+    Pmic_Handle_t handle = {0U};
+    Pmic_HandleCfg_t pmicCfg = {0U};
+
+    pmicTest_initPmicCfg(&pmicCfg);
+
+    /* Remove CRITICAL_SECTION_START_VALID so validateAndSetUserHooks skips it,
+     * leaving handle->criticalSectionStart == NULL after memset.
+     * validatePmicHandle() then fires on (critSecStart == NULL). */
+    pmicCfg.validParams &= ~(uint32_t)PMIC_CFG_INIT_CRITICAL_SECTION_START_VALID;
+
+    int32_t status = Pmic_init(&handle, &pmicCfg);
+    PLATFORM_ASSERT(status == PMIC_ST_ERR_NULL_FPTR);
+}
+
+/**
+ * @brief Test validatePmicHandle() when criticalSectionStop is NULL.
+ */
+void test_neg_pmic_init_validateHandle_nullCritSecStop(void)
+{
+    Pmic_Handle_t handle = {0U};
+    Pmic_HandleCfg_t pmicCfg = {0U};
+
+    pmicTest_initPmicCfg(&pmicCfg);
+
+    // Remove CRITICAL_SECTION_STOP_VALID so handle->criticalSectionStop stays NULL
+    pmicCfg.validParams &= ~(uint32_t)PMIC_CFG_INIT_CRITICAL_SECTION_STOP_VALID;
+
+    int32_t status = Pmic_init(&handle, &pmicCfg);
+    PLATFORM_ASSERT(status == PMIC_ST_ERR_NULL_FPTR);
+}
+
+/**
+ * @brief Test getPmicInfo() IO failure on 2nd read (DEV_REV register).
+ */
+void test_neg_pmic_init_getPmicInfo_ioFailOn2ndRead(void)
+{
+#ifdef BUILD_MOCK
+    PmicMockDevice_t *mockDevice = platform_getMockDevice();
+    Pmic_Handle_t handle = {0U};
+    Pmic_HandleCfg_t pmicCfg = {0U};
+
+    pmicTest_initPmicCfg(&pmicCfg);
+    (void)Pmic_deinit(&pmicHandle);
+
+    PLATFORM_ASSERT(mockDevice != NULL);
+
+    // Skip 1 I/O op (INTERFACE_CONF read succeeds), then fail next one (DEV_REV read)
+    int32_t injectStatus = PmicMock_InjectErrorAfterN(mockDevice,
+                                                       PMIC_MOCK_ERROR_COMM_FAILURE,
+                                                       1U, 1U);
+    PLATFORM_ASSERT(injectStatus == PMIC_MOCK_SUCCESS);
+
+    int32_t status = Pmic_init(&handle, &pmicCfg);
+    PLATFORM_ASSERT(status != PMIC_ST_SUCCESS);
+#else
+    TEST_IGNORE_MESSAGE("Test requires BUILD_MOCK for error injection");
+#endif
+}
+
+/**
+ * @brief Test getPmicInfo() IO failure on 3rd read (NVM_CODE_1 register).
+ */
+void test_neg_pmic_init_getPmicInfo_ioFailOn3rdRead(void)
+{
+#ifdef BUILD_MOCK
+    PmicMockDevice_t *mockDevice = platform_getMockDevice();
+    Pmic_Handle_t handle = {0U};
+    Pmic_HandleCfg_t pmicCfg = {0U};
+
+    pmicTest_initPmicCfg(&pmicCfg);
+    (void)Pmic_deinit(&pmicHandle);
+
+    PLATFORM_ASSERT(mockDevice != NULL);
+
+    // Skip 2 I/O ops, fail on 3rd (NVM_CODE_1 read)
+    int32_t injectStatus = PmicMock_InjectErrorAfterN(mockDevice,
+                                                       PMIC_MOCK_ERROR_COMM_FAILURE,
+                                                       2U, 1U);
+    PLATFORM_ASSERT(injectStatus == PMIC_MOCK_SUCCESS);
+
+    int32_t status = Pmic_init(&handle, &pmicCfg);
+    PLATFORM_ASSERT(status != PMIC_ST_SUCCESS);
+#else
+    TEST_IGNORE_MESSAGE("Test requires BUILD_MOCK for error injection");
+#endif
+}
+
+/**
+ * @brief Test getPmicInfo() IO failure on 4th read (NVM_CODE_2 register).
+ */
+void test_neg_pmic_init_getPmicInfo_ioFailOn4thRead(void)
+{
+#ifdef BUILD_MOCK
+    PmicMockDevice_t *mockDevice = platform_getMockDevice();
+    Pmic_Handle_t handle = {0U};
+    Pmic_HandleCfg_t pmicCfg = {0U};
+
+    pmicTest_initPmicCfg(&pmicCfg);
+    (void)Pmic_deinit(&pmicHandle);
+
+    PLATFORM_ASSERT(mockDevice != NULL);
+
+    // Skip 3 I/O ops, fail on 4th (NVM_CODE_2 read)
+    int32_t injectStatus = PmicMock_InjectErrorAfterN(mockDevice,
+                                                       PMIC_MOCK_ERROR_COMM_FAILURE,
+                                                       3U, 1U);
+    PLATFORM_ASSERT(injectStatus == PMIC_MOCK_SUCCESS);
+
+    int32_t status = Pmic_init(&handle, &pmicCfg);
+    PLATFORM_ASSERT(status != PMIC_ST_SUCCESS);
+#else
+    TEST_IGNORE_MESSAGE("Test requires BUILD_MOCK for error injection");
+#endif
+}
+
+/**
+ * @brief Test getPmicInfo() IO failure on 5th read (MANUFACTURING_VER register).
+ */
+void test_neg_pmic_init_getPmicInfo_ioFailOn5thRead(void)
+{
+#ifdef BUILD_MOCK
+    PmicMockDevice_t *mockDevice = platform_getMockDevice();
+    Pmic_Handle_t handle = {0U};
+    Pmic_HandleCfg_t pmicCfg = {0U};
+
+    pmicTest_initPmicCfg(&pmicCfg);
+    (void)Pmic_deinit(&pmicHandle);
+
+    PLATFORM_ASSERT(mockDevice != NULL);
+
+    // Skip 4 I/O ops, fail on 5th (MANUFACTURING_VER read)
+    int32_t injectStatus = PmicMock_InjectErrorAfterN(mockDevice,
+                                                       PMIC_MOCK_ERROR_COMM_FAILURE,
+                                                       4U, 1U);
+    PLATFORM_ASSERT(injectStatus == PMIC_MOCK_SUCCESS);
+
+    int32_t status = Pmic_init(&handle, &pmicCfg);
+    PLATFORM_ASSERT(status != PMIC_ST_SUCCESS);
+#else
+    TEST_IGNORE_MESSAGE("Test requires BUILD_MOCK for error injection");
+#endif
+}
+
+/**
+ * @brief Test decipherWhetherA0() IO failure on first read (REGISTER_LOCK).
+ */
+void test_neg_pmic_init_decipherA0_ioFailOnLockRead(void)
+{
+#ifdef BUILD_MOCK
+    PmicMockDevice_t *mockDevice = platform_getMockDevice();
+    Pmic_Handle_t handle = {0U};
+    Pmic_HandleCfg_t pmicCfg = {0U};
+
+    pmicTest_initPmicCfg(&pmicCfg);
+    (void)Pmic_deinit(&pmicHandle);
+
+    PLATFORM_ASSERT(mockDevice != NULL);
+
+    // Skip 5 I/O ops (getPmicInfo reads), fail on 6th (REGISTER_LOCK read)
+    int32_t injectStatus = PmicMock_InjectErrorAfterN(mockDevice,
+                                                       PMIC_MOCK_ERROR_COMM_FAILURE,
+                                                       5U, 1U);
+    PLATFORM_ASSERT(injectStatus == PMIC_MOCK_SUCCESS);
+
+    int32_t status = Pmic_init(&handle, &pmicCfg);
+    PLATFORM_ASSERT(status != PMIC_ST_SUCCESS);
+#else
+    TEST_IGNORE_MESSAGE("Test requires BUILD_MOCK for error injection");
+#endif
+}

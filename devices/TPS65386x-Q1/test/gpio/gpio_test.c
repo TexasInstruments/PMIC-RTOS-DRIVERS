@@ -1,0 +1,940 @@
+/******************************************************************************
+ * Copyright (c) 2026 Texas Instruments Incorporated - http://www.ti.com
+ *
+ *  Redistribution and use in source and binary forms, with or without
+ *  modification, are permitted provided that the following conditions
+ *  are met:
+ *
+ *    Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions and the following disclaimer.
+ *
+ *    Redistributions in binary form must reproduce the above copyright
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the
+ *    distribution.
+ *
+ *    Neither the name of Texas Instruments Incorporated nor the names of
+ *    its contributors may be used to endorse or promote products derived
+ *    from this software without specific prior written permission.
+ *
+ *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ *  "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+ *  LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+ *  A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+ *  OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+ *  SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+ *  LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+ *  DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+ *  THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ *  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ *  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ *
+ *****************************************************************************/
+
+/* ========================================================================== */
+/*                             Include Files                                  */
+/* ========================================================================== */
+
+#include "gpio_test.h"
+#include "test_constants.h"
+#ifdef BUILD_MOCK
+#include "pmic_mock_core.h"
+#endif
+
+/* ========================================================================== */
+/*                            Global Variables                                */
+/* ========================================================================== */
+
+static Pmic_Handle_t g_pmicHandle;
+
+/* ========================================================================== */
+/*                             Macros & Typedefs                              */
+/* ========================================================================== */
+
+/* ========================================================================== */
+/*                          Function Definitions                              */
+/* ========================================================================== */
+
+/* ========================================================================== */
+/*                            Helper Functions                                */
+/* ========================================================================== */
+
+/**
+ * @brief Initialize PMIC handle for GPIO tests.
+ */
+static int32_t gpioTest_initHandle(void)
+{
+    /* Dummy handle for mock - driver validates non-NULL but doesn't dereference */
+    static uint32_t dummyCommHandle = TEST_DUMMY_HANDLE;
+
+    Pmic_HandleCfg_t pmicCfg = {
+        .validParams = PMIC_CFG_INIT_COMM_MODE_VALID |
+                       PMIC_CFG_INIT_COMM_HANDLE_0_VALID |
+                       PMIC_CFG_INIT_IO_READ_VALID |
+                       PMIC_CFG_INIT_IO_WRITE_VALID |
+                       PMIC_CFG_INIT_CRITICAL_SECTION_START_VALID |
+                       PMIC_CFG_INIT_CRITICAL_SECTION_STOP_VALID,
+        .commMode = PMIC_INTF_SPI,
+        .commHandle0 = (void*)&dummyCommHandle,  /* Driver requires non-NULL, even for mock */
+        .ioRead = &platform_rxByte,
+        .ioWrite = &platform_txByte,
+        .criticalSectionStart = &platform_critSecStart,
+        .criticalSectionStop = &platform_critSecStop
+    };
+    int32_t status;
+
+    status = Pmic_init(&g_pmicHandle, &pmicCfg);
+
+    return status;
+}
+
+/**
+ * @brief Helper function to test GPIO set/get configuration.
+ *
+ * @param validParam  Valid param bit for the GPIO to test
+ * @param setValue    Value to set
+ * @param verifyFunc  Function pointer to verify the value
+ */
+static void gpioTest_setGetCfg(uint32_t validParam, uint8_t setValue,
+                                void (*verifyFunc)(const Pmic_GpioCfg_t *cfg, uint8_t expected))
+{
+    Pmic_GpioCfg_t setCfg, getCfg;
+    int32_t status;
+
+    memset(&setCfg, 0, sizeof(setCfg));
+    memset(&getCfg, 0, sizeof(getCfg));
+
+    setCfg.validParams = validParam;
+    getCfg.validParams = validParam;
+
+    /* Set the appropriate field based on validParam */
+    if (validParam == PMIC_CFG_GPIO_GPI1_VALID)
+    {
+        setCfg.gpi1 = setValue;
+    }
+    else if (validParam == PMIC_CFG_GPIO_GPI4_VALID)
+    {
+        setCfg.gpi4 = setValue;
+    }
+    else if (validParam == PMIC_CFG_GPIO_GPO1_VALID)
+    {
+        setCfg.gpo1 = setValue;
+    }
+    else if (validParam == PMIC_CFG_GPIO_GPO2_VALID)
+    {
+        setCfg.gpo2 = setValue;
+    }
+    else if (validParam == PMIC_CFG_GPIO_GPO3_VALID)
+    {
+        setCfg.gpo3 = setValue;
+    }
+    else if (validParam == PMIC_CFG_GPIO_GPO4_VALID)
+    {
+        setCfg.gpo4 = setValue;
+    }
+
+    /* Set configuration */
+    status = Pmic_gpioSetCfg(&g_pmicHandle, &setCfg);
+    PLATFORM_ASSERT(status == PMIC_ST_SUCCESS);
+
+    /* Get configuration */
+    status = Pmic_gpioGetCfg(&g_pmicHandle, &getCfg);
+    PLATFORM_ASSERT(status == PMIC_ST_SUCCESS);
+
+    /* Verify configuration */
+    if (verifyFunc != NULL)
+    {
+        verifyFunc(&getCfg, setValue);
+    }
+}
+
+/**
+ * @brief Verify GPI1 configuration.
+ */
+static void gpioTest_verifyGpi1(const Pmic_GpioCfg_t *cfg, uint8_t expected)
+{
+    PLATFORM_ASSERT(cfg->gpi1 == expected);
+}
+
+/**
+ * @brief Verify GPI4 configuration.
+ */
+static void gpioTest_verifyGpi4(const Pmic_GpioCfg_t *cfg, uint8_t expected)
+{
+    PLATFORM_ASSERT(cfg->gpi4 == expected);
+}
+
+/**
+ * @brief Verify GPO1 configuration.
+ */
+static void gpioTest_verifyGpo1(const Pmic_GpioCfg_t *cfg, uint8_t expected)
+{
+    PLATFORM_ASSERT(cfg->gpo1 == expected);
+}
+
+/**
+ * @brief Verify GPO2 configuration.
+ */
+static void gpioTest_verifyGpo2(const Pmic_GpioCfg_t *cfg, uint8_t expected)
+{
+    PLATFORM_ASSERT(cfg->gpo2 == expected);
+}
+
+/**
+ * @brief Verify GPO3 configuration.
+ */
+static void gpioTest_verifyGpo3(const Pmic_GpioCfg_t *cfg, uint8_t expected)
+{
+    PLATFORM_ASSERT(cfg->gpo3 == expected);
+}
+
+/**
+ * @brief Verify GPO4 configuration.
+ */
+static void gpioTest_verifyGpo4(const Pmic_GpioCfg_t *cfg, uint8_t expected)
+{
+    PLATFORM_ASSERT(cfg->gpo4 == expected);
+}
+
+/* ========================================================================== */
+/*                         POSITIVE TEST CASES                                */
+/* ========================================================================== */
+
+/* GPI1 Tests */
+void test_pos_gpio_gpioSetGetCfg_gpi1_esmIn(void)
+{
+    gpioTest_setGetCfg(PMIC_CFG_GPIO_GPI1_VALID, PMIC_GPI1_ESM_IN, gpioTest_verifyGpi1);
+}
+
+void test_pos_gpio_gpioSetGetCfg_gpi1_wdIn(void)
+{
+    gpioTest_setGetCfg(PMIC_CFG_GPIO_GPI1_VALID, PMIC_GPI1_WD_IN, gpioTest_verifyGpi1);
+}
+
+/* GPI4 Tests */
+void test_pos_gpio_gpioSetGetCfg_gpi4_comparator(void)
+{
+    gpioTest_setGetCfg(PMIC_CFG_GPIO_GPI4_VALID, PMIC_GPI4_COMPARATOR, gpioTest_verifyGpi4);
+}
+
+void test_pos_gpio_gpioSetGetCfg_gpi4_wdIn(void)
+{
+    gpioTest_setGetCfg(PMIC_CFG_GPIO_GPI4_VALID, PMIC_GPI4_WD_IN, gpioTest_verifyGpi4);
+}
+
+void test_pos_gpio_gpioSetGetCfg_gpi4_cosN(void)
+{
+    gpioTest_setGetCfg(PMIC_CFG_GPIO_GPI4_VALID, PMIC_GPI4_COS_N, gpioTest_verifyGpi4);
+}
+
+/* GPO1 Tests */
+void test_pos_gpio_gpioSetGetCfg_gpo1_lowLvl(void)
+{
+    gpioTest_setGetCfg(PMIC_CFG_GPIO_GPO1_VALID, PMIC_GPO1_LOW_LVL, gpioTest_verifyGpo1);
+}
+
+void test_pos_gpio_gpioSetGetCfg_gpo1_highLvl(void)
+{
+    gpioTest_setGetCfg(PMIC_CFG_GPIO_GPO1_VALID, PMIC_GPO1_HIGH_LVL, gpioTest_verifyGpo1);
+}
+
+void test_pos_gpio_gpioSetGetCfg_gpo1_hiz(void)
+{
+    gpioTest_setGetCfg(PMIC_CFG_GPIO_GPO1_VALID, PMIC_GPO1_HIZ, gpioTest_verifyGpo1);
+}
+
+void test_pos_gpio_gpioSetGetCfg_gpo1_nint(void)
+{
+    gpioTest_setGetCfg(PMIC_CFG_GPIO_GPO1_VALID, PMIC_GPO1_NINT, gpioTest_verifyGpo1);
+}
+
+void test_pos_gpio_gpioSetGetCfg_gpo1_enOut(void)
+{
+    gpioTest_setGetCfg(PMIC_CFG_GPIO_GPO1_VALID, PMIC_GPO1_EN_OUT, gpioTest_verifyGpo1);
+}
+
+void test_pos_gpio_gpioSetGetCfg_gpo1_enOut2(void)
+{
+    gpioTest_setGetCfg(PMIC_CFG_GPIO_GPO1_VALID, PMIC_GPO1_EN_OUT2, gpioTest_verifyGpo1);
+}
+
+void test_pos_gpio_gpioSetGetCfg_gpo1_sinNO(void)
+{
+    gpioTest_setGetCfg(PMIC_CFG_GPIO_GPO1_VALID, PMIC_GPO1_SIN_N_O, gpioTest_verifyGpo1);
+}
+
+/* GPO2 Tests */
+void test_pos_gpio_gpioSetGetCfg_gpo2_lowLvl(void)
+{
+    gpioTest_setGetCfg(PMIC_CFG_GPIO_GPO2_VALID, PMIC_GPO2_LOW_LVL, gpioTest_verifyGpo2);
+}
+
+void test_pos_gpio_gpioSetGetCfg_gpo2_highLvl(void)
+{
+    gpioTest_setGetCfg(PMIC_CFG_GPIO_GPO2_VALID, PMIC_GPO2_HIGH_LVL, gpioTest_verifyGpo2);
+}
+
+void test_pos_gpio_gpioSetGetCfg_gpo2_hiz(void)
+{
+    gpioTest_setGetCfg(PMIC_CFG_GPIO_GPO2_VALID, PMIC_GPO2_HIZ, gpioTest_verifyGpo2);
+}
+
+void test_pos_gpio_gpioSetGetCfg_gpo2_comp1Out(void)
+{
+    gpioTest_setGetCfg(PMIC_CFG_GPIO_GPO2_VALID, PMIC_GPO2_COMP1_OUT, gpioTest_verifyGpo2);
+}
+
+void test_pos_gpio_gpioSetGetCfg_gpo2_enOut2(void)
+{
+    gpioTest_setGetCfg(PMIC_CFG_GPIO_GPO2_VALID, PMIC_GPO2_EN_OUT2, gpioTest_verifyGpo2);
+}
+
+void test_pos_gpio_gpioSetGetCfg_gpo2_syncClkOut(void)
+{
+    gpioTest_setGetCfg(PMIC_CFG_GPIO_GPO2_VALID, PMIC_GPO2_SYNCCLKOUT, gpioTest_verifyGpo2);
+}
+
+void test_pos_gpio_gpioSetGetCfg_gpo2_pgood(void)
+{
+    gpioTest_setGetCfg(PMIC_CFG_GPIO_GPO2_VALID, PMIC_GPO2_PGOOD, gpioTest_verifyGpo2);
+}
+
+void test_pos_gpio_gpioSetGetCfg_gpo2_sinPO(void)
+{
+    gpioTest_setGetCfg(PMIC_CFG_GPIO_GPO2_VALID, PMIC_GPO2_SIN_P_O, gpioTest_verifyGpo2);
+}
+
+/* GPO3 Tests */
+void test_pos_gpio_gpioSetGetCfg_gpo3_lowLvl(void)
+{
+    gpioTest_setGetCfg(PMIC_CFG_GPIO_GPO3_VALID, PMIC_GPO3_LOW_LVL, gpioTest_verifyGpo3);
+}
+
+void test_pos_gpio_gpioSetGetCfg_gpo3_highLvl(void)
+{
+    gpioTest_setGetCfg(PMIC_CFG_GPIO_GPO3_VALID, PMIC_GPO3_HIGH_LVL, gpioTest_verifyGpo3);
+}
+
+void test_pos_gpio_gpioSetGetCfg_gpo3_hiz(void)
+{
+    gpioTest_setGetCfg(PMIC_CFG_GPIO_GPO3_VALID, PMIC_GPO3_HIZ, gpioTest_verifyGpo3);
+}
+
+void test_pos_gpio_gpioSetGetCfg_gpo3_pgood(void)
+{
+    gpioTest_setGetCfg(PMIC_CFG_GPIO_GPO3_VALID, PMIC_GPO3_PGOOD, gpioTest_verifyGpo3);
+}
+
+void test_pos_gpio_gpioSetGetCfg_gpo3_comp2Out(void)
+{
+    gpioTest_setGetCfg(PMIC_CFG_GPIO_GPO3_VALID, PMIC_GPO3_COMP2_OUT, gpioTest_verifyGpo3);
+}
+
+void test_pos_gpio_gpioSetGetCfg_gpo3_enOut2(void)
+{
+    gpioTest_setGetCfg(PMIC_CFG_GPIO_GPO3_VALID, PMIC_GPO3_EN_OUT2, gpioTest_verifyGpo3);
+}
+
+void test_pos_gpio_gpioSetGetCfg_gpo3_safeOut2(void)
+{
+    gpioTest_setGetCfg(PMIC_CFG_GPIO_GPO3_VALID, PMIC_GPO3_SAFE_OUT2, gpioTest_verifyGpo3);
+}
+
+void test_pos_gpio_gpioSetGetCfg_gpo3_cosPO(void)
+{
+    gpioTest_setGetCfg(PMIC_CFG_GPIO_GPO3_VALID, PMIC_GPO3_COS_P_O, gpioTest_verifyGpo3);
+}
+
+/* GPO4 Tests */
+void test_pos_gpio_gpioSetGetCfg_gpo4_lowLvl(void)
+{
+    gpioTest_setGetCfg(PMIC_CFG_GPIO_GPO4_VALID, PMIC_GPO4_LOW_LVL, gpioTest_verifyGpo4);
+}
+
+void test_pos_gpio_gpioSetGetCfg_gpo4_highLvl(void)
+{
+    gpioTest_setGetCfg(PMIC_CFG_GPIO_GPO4_VALID, PMIC_GPO4_HIGH_LVL, gpioTest_verifyGpo4);
+}
+
+void test_pos_gpio_gpioSetGetCfg_gpo4_hiz(void)
+{
+    gpioTest_setGetCfg(PMIC_CFG_GPIO_GPO4_VALID, PMIC_GPO4_HIZ, gpioTest_verifyGpo4);
+}
+
+void test_pos_gpio_gpioSetGetCfg_gpo4_safeOut2(void)
+{
+    gpioTest_setGetCfg(PMIC_CFG_GPIO_GPO4_VALID, PMIC_GPO4_SAFE_OUT2, gpioTest_verifyGpo4);
+}
+
+void test_pos_gpio_gpioSetGetCfg_gpo4_enOut(void)
+{
+    gpioTest_setGetCfg(PMIC_CFG_GPIO_GPO4_VALID, PMIC_GPO4_EN_OUT, gpioTest_verifyGpo4);
+}
+
+void test_pos_gpio_gpioSetGetCfg_gpo4_nint(void)
+{
+    gpioTest_setGetCfg(PMIC_CFG_GPIO_GPO4_VALID, PMIC_GPO4_NINT, gpioTest_verifyGpo4);
+}
+
+void test_pos_gpio_gpioSetGetCfg_gpo4_pgood(void)
+{
+    gpioTest_setGetCfg(PMIC_CFG_GPIO_GPO4_VALID, PMIC_GPO4_PGOOD, gpioTest_verifyGpo4);
+}
+
+void test_pos_gpio_gpioSetGetCfg_gpo4_cosNO(void)
+{
+    gpioTest_setGetCfg(PMIC_CFG_GPIO_GPO4_VALID, PMIC_GPO4_COS_N_O, gpioTest_verifyGpo4);
+}
+
+/* GPO Output Value Tests */
+void test_pos_gpio_gpioGetOutputValue_allGpos(void)
+{
+    int32_t status;
+    bool high;
+    uint8_t gpo;
+
+    /* Test all 4 GPO pins */
+    for (gpo = PMIC_GPO1; gpo <= PMIC_GPO4; gpo++)
+    {
+        status = Pmic_gpioGetOutputValue(&g_pmicHandle, gpo, &high);
+        PLATFORM_ASSERT(status == PMIC_ST_SUCCESS);
+    }
+}
+
+/**
+ * @brief Test GPO1_HIZ_DUPLICATE handling.
+ */
+void test_pos_gpio_gpioGpo1Hiz_duplicate(void)
+{
+#ifdef BUILD_MOCK
+    int32_t status;
+    Pmic_GpioCfg_t getCfg;
+    PmicMockDevice_t *mockDevice = platform_getMockDevice();
+
+    PLATFORM_ASSERT(mockDevice != NULL);
+
+    memset(&getCfg, 0, sizeof(getCfg));
+    getCfg.validParams = PMIC_CFG_GPIO_GPO1_VALID;
+
+    /* Directly set GPO_CFG1 register to have GPO1_CONF = 6 (duplicate HIZ value)
+     * Register layout: GPO_CFG1_REG (0x7C)
+     *   Bits [2:0] = GPO1_CFG (we set to 6)
+     *   Bits [5:3] = GPO2_CFG (we leave as 0)
+     */
+    status = PmicMock_WriteRegister(mockDevice, 0x7CU, 0x06U);
+    PLATFORM_ASSERT(status == PMIC_MOCK_SUCCESS);
+
+    /* Read configuration - driver should convert value 6 to PMIC_GPO1_HIZ (2) */
+    status = Pmic_gpioGetCfg(&g_pmicHandle, &getCfg);
+    PLATFORM_ASSERT(status == PMIC_ST_SUCCESS);
+
+    /* Verify that GPO1 was converted from 6 to 2 (PMIC_GPO1_HIZ) */
+    PLATFORM_ASSERT(getCfg.gpo1 == PMIC_GPO1_HIZ);
+#else
+    TEST_IGNORE_MESSAGE("Requires BUILD_MOCK for register injection");
+#endif
+}
+
+/* ========================================================================== */
+/*                    POSITIVE TESTS - SAFEOUT                                */
+/* ========================================================================== */
+
+void test_pos_gpio_gpioSafeOutSetGet(void)
+{
+    int32_t status;
+    Pmic_GpioSafeOutCfg_t setCfg = {0U};
+    Pmic_GpioSafeOutCfg_t getCfg = {0U};
+
+    /* Enable both SAFEOUT1 and SAFEOUT2 */
+    setCfg.validParams = PMIC_CFG_GPIO_SAFEOUT1_EN_VALID | PMIC_CFG_GPIO_SAFEOUT2_EN_VALID;
+    setCfg.safeOut1En = true;
+    setCfg.safeOut2En = true;
+    status = Pmic_gpioSetSafeOutCfg(&g_pmicHandle, &setCfg);
+    PLATFORM_ASSERT(status == PMIC_ST_SUCCESS);
+
+    /* Verify both are enabled */
+    status = Pmic_gpioGetSafeOutCfg(&g_pmicHandle, &getCfg);
+    PLATFORM_ASSERT(status == PMIC_ST_SUCCESS);
+    PLATFORM_ASSERT(getCfg.safeOut1En == true);
+    PLATFORM_ASSERT(getCfg.safeOut2En == true);
+
+    /* Disable both SAFEOUT1 and SAFEOUT2 */
+    setCfg.safeOut1En = false;
+    setCfg.safeOut2En = false;
+    status = Pmic_gpioSetSafeOutCfg(&g_pmicHandle, &setCfg);
+    PLATFORM_ASSERT(status == PMIC_ST_SUCCESS);
+
+    /* Verify both are disabled */
+    status = Pmic_gpioGetSafeOutCfg(&g_pmicHandle, &getCfg);
+    PLATFORM_ASSERT(status == PMIC_ST_SUCCESS);
+    PLATFORM_ASSERT(getCfg.safeOut1En == false);
+    PLATFORM_ASSERT(getCfg.safeOut2En == false);
+}
+
+void test_pos_gpio_gpioSafeOut_individual(void)
+{
+    int32_t status;
+    Pmic_GpioSafeOutCfg_t setCfg = {0U};
+    Pmic_GpioSafeOutCfg_t getCfg = {0U};
+
+    /* Enable only SAFEOUT1 */
+    setCfg.validParams = PMIC_CFG_GPIO_SAFEOUT1_EN_VALID;
+    setCfg.safeOut1En = true;
+    status = Pmic_gpioSetSafeOutCfg(&g_pmicHandle, &setCfg);
+    PLATFORM_ASSERT(status == PMIC_ST_SUCCESS);
+
+    /* Verify SAFEOUT1 is set */
+    status = Pmic_gpioGetSafeOutCfg(&g_pmicHandle, &getCfg);
+    PLATFORM_ASSERT(status == PMIC_ST_SUCCESS);
+    PLATFORM_ASSERT(getCfg.safeOut1En == true);
+
+    /* Enable only SAFEOUT2 */
+    setCfg.validParams = PMIC_CFG_GPIO_SAFEOUT2_EN_VALID;
+    setCfg.safeOut1En = false;
+    setCfg.safeOut2En = true;
+    status = Pmic_gpioSetSafeOutCfg(&g_pmicHandle, &setCfg);
+    PLATFORM_ASSERT(status == PMIC_ST_SUCCESS);
+
+    /* Verify SAFEOUT2 is set */
+    status = Pmic_gpioGetSafeOutCfg(&g_pmicHandle, &getCfg);
+    PLATFORM_ASSERT(status == PMIC_ST_SUCCESS);
+    PLATFORM_ASSERT(getCfg.safeOut2En == true);
+}
+
+/* ========================================================================== */
+/*                         NEGATIVE TEST CASES                                */
+/* ========================================================================== */
+
+/* NULL Parameter Tests */
+void test_neg_gpio_gpioSetCfg_nullParam_handle(void)
+{
+    Pmic_GpioCfg_t gpioCfg;
+    int32_t status;
+
+    memset(&gpioCfg, 0, sizeof(gpioCfg));
+    gpioCfg.validParams = PMIC_CFG_GPIO_GPI1_VALID;
+
+    status = Pmic_gpioSetCfg(NULL, &gpioCfg);
+    PLATFORM_ASSERT(status == PMIC_ST_ERR_NULL_PARAM);
+}
+
+void test_neg_gpio_gpioSetCfg_nullParam_gpioCfg(void)
+{
+    int32_t status;
+
+    status = Pmic_gpioSetCfg(&g_pmicHandle, NULL);
+    PLATFORM_ASSERT(status == PMIC_ST_ERR_NULL_PARAM);
+}
+
+void test_neg_gpio_gpioSetCfg_invalidParam_validParams(void)
+{
+    Pmic_GpioCfg_t gpioCfg;
+    int32_t status;
+
+    memset(&gpioCfg, 0, sizeof(gpioCfg));
+    gpioCfg.validParams = 0U;  /* No valid params set */
+
+    status = Pmic_gpioSetCfg(&g_pmicHandle, &gpioCfg);
+    PLATFORM_ASSERT(status == PMIC_ST_ERR_INV_PARAM);
+}
+
+void test_neg_gpio_gpioGetCfg_nullParam_handle(void)
+{
+    Pmic_GpioCfg_t gpioCfg;
+    int32_t status;
+
+    memset(&gpioCfg, 0, sizeof(gpioCfg));
+    gpioCfg.validParams = PMIC_CFG_GPIO_GPI1_VALID;
+
+    status = Pmic_gpioGetCfg(NULL, &gpioCfg);
+    PLATFORM_ASSERT(status == PMIC_ST_ERR_NULL_PARAM);
+}
+
+void test_neg_gpio_gpioGetCfg_nullParam_gpioCfg(void)
+{
+    int32_t status;
+
+    status = Pmic_gpioGetCfg(&g_pmicHandle, NULL);
+    PLATFORM_ASSERT(status == PMIC_ST_ERR_NULL_PARAM);
+}
+
+void test_neg_gpio_gpioGetCfg_invalidParam_validParams(void)
+{
+    Pmic_GpioCfg_t gpioCfg;
+    int32_t status;
+
+    memset(&gpioCfg, 0, sizeof(gpioCfg));
+    gpioCfg.validParams = 0U;  /* No valid params set */
+
+    status = Pmic_gpioGetCfg(&g_pmicHandle, &gpioCfg);
+    PLATFORM_ASSERT(status == PMIC_ST_ERR_INV_PARAM);
+}
+
+void test_neg_gpio_gpioGetOutputValue_nullParam_handle(void)
+{
+    bool high;
+    int32_t status;
+
+    status = Pmic_gpioGetOutputValue(NULL, PMIC_GPO1, &high);
+    PLATFORM_ASSERT(status == PMIC_ST_ERR_NULL_PARAM);
+}
+
+void test_neg_gpio_gpioGetOutputValue_nullParam_high(void)
+{
+    int32_t status;
+
+    status = Pmic_gpioGetOutputValue(&g_pmicHandle, PMIC_GPO1, NULL);
+    PLATFORM_ASSERT(status == PMIC_ST_ERR_NULL_PARAM);
+}
+
+void test_neg_gpio_gpioGetOutputValue_invalidParam_gpo(void)
+{
+    bool high;
+    int32_t status;
+
+    /* Test below minimum */
+    status = Pmic_gpioGetOutputValue(&g_pmicHandle, PMIC_GPO_MIN - 1U, &high);
+    PLATFORM_ASSERT(status == PMIC_ST_ERR_INV_PARAM);
+
+    /* Test above maximum */
+    status = Pmic_gpioGetOutputValue(&g_pmicHandle, PMIC_GPO_MAX + 1U, &high);
+    PLATFORM_ASSERT(status == PMIC_ST_ERR_INV_PARAM);
+}
+
+/* Invalid Value Tests */
+void test_neg_gpio_gpioSetCfg_invalidValue_gpi1(void)
+{
+    Pmic_GpioCfg_t gpioCfg;
+    int32_t status;
+
+    memset(&gpioCfg, 0, sizeof(gpioCfg));
+    gpioCfg.validParams = PMIC_CFG_GPIO_GPI1_VALID;
+    gpioCfg.gpi1 = PMIC_GPI1_CFG_MAX + 1U;  /* Invalid value */
+
+    status = Pmic_gpioSetCfg(&g_pmicHandle, &gpioCfg);
+    PLATFORM_ASSERT(status == PMIC_ST_ERR_INV_PARAM);
+}
+
+void test_neg_gpio_gpioSetCfg_invalidValue_gpi4(void)
+{
+    Pmic_GpioCfg_t gpioCfg;
+    int32_t status;
+
+    memset(&gpioCfg, 0, sizeof(gpioCfg));
+    gpioCfg.validParams = PMIC_CFG_GPIO_GPI4_VALID;
+    gpioCfg.gpi4 = PMIC_GPI4_CFG_MAX + 1U;  /* Invalid value */
+
+    status = Pmic_gpioSetCfg(&g_pmicHandle, &gpioCfg);
+    PLATFORM_ASSERT(status == PMIC_ST_ERR_INV_PARAM);
+}
+
+void test_neg_gpio_gpioSetCfg_invalidValue_gpo1(void)
+{
+    Pmic_GpioCfg_t gpioCfg;
+    int32_t status;
+
+    memset(&gpioCfg, 0, sizeof(gpioCfg));
+    gpioCfg.validParams = PMIC_CFG_GPIO_GPO1_VALID;
+    gpioCfg.gpo1 = PMIC_GPO1_CFG_MAX + 1U;  /* Invalid value */
+
+    status = Pmic_gpioSetCfg(&g_pmicHandle, &gpioCfg);
+    PLATFORM_ASSERT(status == PMIC_ST_ERR_INV_PARAM);
+}
+
+void test_neg_gpio_gpioSetCfg_invalidValue_gpo2(void)
+{
+    Pmic_GpioCfg_t gpioCfg;
+    int32_t status;
+
+    memset(&gpioCfg, 0, sizeof(gpioCfg));
+    gpioCfg.validParams = PMIC_CFG_GPIO_GPO2_VALID;
+    gpioCfg.gpo2 = PMIC_GPO2_CFG_MAX + 1U;  /* Invalid value */
+
+    status = Pmic_gpioSetCfg(&g_pmicHandle, &gpioCfg);
+    PLATFORM_ASSERT(status == PMIC_ST_ERR_INV_PARAM);
+}
+
+void test_neg_gpio_gpioSetCfg_invalidValue_gpo3(void)
+{
+    Pmic_GpioCfg_t gpioCfg;
+    int32_t status;
+
+    memset(&gpioCfg, 0, sizeof(gpioCfg));
+    gpioCfg.validParams = PMIC_CFG_GPIO_GPO3_VALID;
+    gpioCfg.gpo3 = PMIC_GPO3_CFG_MAX + 1U;  /* Invalid value */
+
+    status = Pmic_gpioSetCfg(&g_pmicHandle, &gpioCfg);
+    PLATFORM_ASSERT(status == PMIC_ST_ERR_INV_PARAM);
+}
+
+void test_neg_gpio_gpioSetCfg_invalidValue_gpo4(void)
+{
+    Pmic_GpioCfg_t gpioCfg;
+    int32_t status;
+
+    memset(&gpioCfg, 0, sizeof(gpioCfg));
+    gpioCfg.validParams = PMIC_CFG_GPIO_GPO4_VALID;
+    gpioCfg.gpo4 = PMIC_GPO4_CFG_MAX + 1U;  /* Invalid value */
+
+    status = Pmic_gpioSetCfg(&g_pmicHandle, &gpioCfg);
+    PLATFORM_ASSERT(status == PMIC_ST_ERR_INV_PARAM);
+}
+
+/* ========================================================================== */
+// POSITIVE TESTS - SAFEOUT I/O FAILURE
+/* ========================================================================== */
+
+void test_neg_gpio_gpioSetSafeOutCfg_ioRxByteFail(void)
+{
+#ifdef BUILD_MOCK
+    PmicMockDevice_t *mockDevice = platform_getMockDevice();
+    int32_t status;
+    Pmic_GpioSafeOutCfg_t config = {
+        .validParams = PMIC_CFG_GPIO_SAFEOUT1_EN_VALID,
+        .safeOut1En = true
+    };
+
+    PLATFORM_ASSERT(mockDevice != NULL);
+
+    status = PmicMock_InjectError(mockDevice, PMIC_MOCK_ERROR_COMM_FAILURE, 1);
+    PLATFORM_ASSERT(status == PMIC_MOCK_SUCCESS);
+
+    status = Pmic_gpioSetSafeOutCfg(&g_pmicHandle, &config);
+    PLATFORM_ASSERT(status != PMIC_ST_SUCCESS);
+#else
+    TEST_IGNORE_MESSAGE("Test requires BUILD_MOCK for error injection");
+#endif
+}
+
+/* ========================================================================== */
+/*                       NEGATIVE TESTS - SAFEOUT                             */
+/* ========================================================================== */
+
+void test_neg_gpio_gpioSetSafeOutCfg_nullParam_handle(void)
+{
+    Pmic_GpioSafeOutCfg_t config = {
+        .validParams = PMIC_CFG_GPIO_SAFEOUT1_EN_VALID,
+        .safeOut1En = true
+    };
+    int32_t status = Pmic_gpioSetSafeOutCfg(NULL, &config);
+    PLATFORM_ASSERT(status == PMIC_ST_ERR_NULL_PARAM);
+}
+
+void test_neg_gpio_gpioGetSafeOutCfg_nullParam_handle(void)
+{
+    Pmic_GpioSafeOutCfg_t config = {0U};
+    int32_t status = Pmic_gpioGetSafeOutCfg(NULL, &config);
+    PLATFORM_ASSERT(status == PMIC_ST_ERR_NULL_PARAM);
+}
+
+void test_neg_gpio_gpioGetSafeOutCfg_nullParam_config(void)
+{
+    int32_t status = Pmic_gpioGetSafeOutCfg(&g_pmicHandle, NULL);
+    PLATFORM_ASSERT(status == PMIC_ST_ERR_NULL_PARAM);
+}
+
+void test_neg_gpio_gpioSetSafeOutCfg_invalidParam_validParams(void)
+{
+    Pmic_GpioSafeOutCfg_t config = {
+        .validParams = 0U,  /* No valid params set */
+        .safeOut1En = true
+    };
+    int32_t status = Pmic_gpioSetSafeOutCfg(&g_pmicHandle, &config);
+    PLATFORM_ASSERT(status == PMIC_ST_ERR_INV_PARAM);
+}
+
+/* ========================================================================== */
+// Coverage Gap: I/O failure tests for getCfg/setCfg sub-functions
+/* ========================================================================== */
+
+/**
+ * @brief Test GPIO_getCfgGpi1_4() IO read failure path.
+ */
+void test_neg_gpio_gpioGetCfg_gpi1_4_ioRxByteFail(void)
+{
+#ifdef BUILD_MOCK
+    PmicMockDevice_t *mockDevice = platform_getMockDevice();
+    int32_t status;
+    Pmic_GpioCfg_t cfg = {0};
+
+    PLATFORM_ASSERT(mockDevice != NULL);
+
+    cfg.validParams = PMIC_CFG_GPIO_GPI1_VALID;
+
+    // I/O #1: Pmic_ioRxByte_CS(GPI_CFG_REG) inside GPIO_getCfgGpi1_4 - FAIL
+    status = PmicMock_InjectError(mockDevice, PMIC_MOCK_ERROR_COMM_FAILURE, 1);
+    PLATFORM_ASSERT(status == PMIC_MOCK_SUCCESS);
+
+    status = Pmic_gpioGetCfg(&g_pmicHandle, &cfg);
+    PLATFORM_ASSERT(status != PMIC_ST_SUCCESS);
+#else
+    TEST_IGNORE_MESSAGE("Test requires BUILD_MOCK for error injection");
+#endif
+}
+
+/**
+ * @brief Test GPIO_getCfgGpo1_2() IO read failure path.
+ */
+void test_neg_gpio_gpioGetCfg_gpo1_2_ioRxByteFail(void)
+{
+#ifdef BUILD_MOCK
+    PmicMockDevice_t *mockDevice = platform_getMockDevice();
+    int32_t status;
+    Pmic_GpioCfg_t cfg = {0};
+
+    PLATFORM_ASSERT(mockDevice != NULL);
+
+    cfg.validParams = PMIC_CFG_GPIO_GPO1_VALID;
+
+    // I/O #1: Pmic_ioRxByte_CS(GPO_CFG1_REG) inside GPIO_getCfgGpo1_2 - FAIL
+    status = PmicMock_InjectError(mockDevice, PMIC_MOCK_ERROR_COMM_FAILURE, 1);
+    PLATFORM_ASSERT(status == PMIC_MOCK_SUCCESS);
+
+    status = Pmic_gpioGetCfg(&g_pmicHandle, &cfg);
+    PLATFORM_ASSERT(status != PMIC_ST_SUCCESS);
+#else
+    TEST_IGNORE_MESSAGE("Test requires BUILD_MOCK for error injection");
+#endif
+}
+
+/**
+ * @brief Test GPIO_getCfgGpo3_4() IO read failure path.
+ */
+void test_neg_gpio_gpioGetCfg_gpo3_4_ioRxByteFail(void)
+{
+#ifdef BUILD_MOCK
+    PmicMockDevice_t *mockDevice = platform_getMockDevice();
+    int32_t status;
+    Pmic_GpioCfg_t cfg = {0};
+
+    PLATFORM_ASSERT(mockDevice != NULL);
+
+    cfg.validParams = PMIC_CFG_GPIO_GPO3_VALID;
+
+    // I/O #1: Pmic_ioRxByte(GPO_CFG2_REG) inside GPIO_getCfgGpo3_4 - FAIL
+    status = PmicMock_InjectError(mockDevice, PMIC_MOCK_ERROR_COMM_FAILURE, 1);
+    PLATFORM_ASSERT(status == PMIC_MOCK_SUCCESS);
+
+    status = Pmic_gpioGetCfg(&g_pmicHandle, &cfg);
+    PLATFORM_ASSERT(status != PMIC_ST_SUCCESS);
+#else
+    TEST_IGNORE_MESSAGE("Test requires BUILD_MOCK for error injection");
+#endif
+}
+
+/**
+ * @brief Test GPIO_setCfgGpi1_4() IO read failure path.
+ */
+void test_neg_gpio_gpioSetCfg_gpi1_4_ioRxByteFail(void)
+{
+#ifdef BUILD_MOCK
+    PmicMockDevice_t *mockDevice = platform_getMockDevice();
+    int32_t status;
+    Pmic_GpioCfg_t cfg = {0};
+
+    PLATFORM_ASSERT(mockDevice != NULL);
+
+    cfg.validParams = PMIC_CFG_GPIO_GPI1_VALID;
+    cfg.gpi1 = 0U;  // Valid value
+
+    // I/O #1: Pmic_ioRxByte(GPI_CFG_REG) inside GPIO_setCfgGpi1_4 - FAIL
+    status = PmicMock_InjectError(mockDevice, PMIC_MOCK_ERROR_COMM_FAILURE, 1);
+    PLATFORM_ASSERT(status == PMIC_MOCK_SUCCESS);
+
+    status = Pmic_gpioSetCfg(&g_pmicHandle, &cfg);
+    PLATFORM_ASSERT(status != PMIC_ST_SUCCESS);
+#else
+    TEST_IGNORE_MESSAGE("Test requires BUILD_MOCK for error injection");
+#endif
+}
+
+/**
+ * @brief Test GPIO_setCfgGpo1_2() IO read failure path.
+ */
+void test_neg_gpio_gpioSetCfg_gpo1_2_ioRxByteFail(void)
+{
+#ifdef BUILD_MOCK
+    PmicMockDevice_t *mockDevice = platform_getMockDevice();
+    int32_t status;
+    Pmic_GpioCfg_t cfg = {0};
+
+    PLATFORM_ASSERT(mockDevice != NULL);
+
+    cfg.validParams = PMIC_CFG_GPIO_GPO1_VALID;
+    cfg.gpo1 = 0U;  // Valid value
+
+    // I/O #1: Pmic_ioRxByte(GPO_CFG1_REG) inside GPIO_setCfgGpo1_2 - FAIL
+    status = PmicMock_InjectError(mockDevice, PMIC_MOCK_ERROR_COMM_FAILURE, 1);
+    PLATFORM_ASSERT(status == PMIC_MOCK_SUCCESS);
+
+    status = Pmic_gpioSetCfg(&g_pmicHandle, &cfg);
+    PLATFORM_ASSERT(status != PMIC_ST_SUCCESS);
+#else
+    TEST_IGNORE_MESSAGE("Test requires BUILD_MOCK for error injection");
+#endif
+}
+
+/**
+ * @brief Test GPIO_setCfgGpo3_4() IO read failure path.
+ */
+void test_neg_gpio_gpioSetCfg_gpo3_4_ioRxByteFail(void)
+{
+#ifdef BUILD_MOCK
+    PmicMockDevice_t *mockDevice = platform_getMockDevice();
+    int32_t status;
+    Pmic_GpioCfg_t cfg = {0};
+
+    PLATFORM_ASSERT(mockDevice != NULL);
+
+    cfg.validParams = PMIC_CFG_GPIO_GPO3_VALID;
+    cfg.gpo3 = 0U;  // Valid value
+
+    // I/O #1: Pmic_ioRxByte(GPO_CFG2_REG) inside GPIO_setCfgGpo3_4 - FAIL
+    status = PmicMock_InjectError(mockDevice, PMIC_MOCK_ERROR_COMM_FAILURE, 1);
+    PLATFORM_ASSERT(status == PMIC_MOCK_SUCCESS);
+
+    status = Pmic_gpioSetCfg(&g_pmicHandle, &cfg);
+    PLATFORM_ASSERT(status != PMIC_ST_SUCCESS);
+#else
+    TEST_IGNORE_MESSAGE("Test requires BUILD_MOCK for error injection");
+#endif
+}
+
+/* ========================================================================== */
+/*                            Test Setup/Teardown                             */
+/* ========================================================================== */
+
+/**
+ * @brief GPIO test suite entry point (wrapper for test runner).
+ * @param args Test arguments (unused)
+ *
+ * Note: This module doesn't define setUp/tearDown at global scope to avoid
+ * conflicts with other modules. Instead, it handles initialization internally.
+ */
+void gpio_test(void *args)
+{
+    int32_t status;
+    (void)args;  /* Unused parameter */
+
+    /* Initialize once for all GPIO tests */
+    platform_init();
+    testTimer_startModule("GPIO");
+    status = gpioTest_initHandle();
+    if (status != PMIC_ST_SUCCESS)
+    {
+        printf("ERROR: GPIO test initialization failed with status: %d\r\n", status);
+        platform_deinit();
+        return;
+    }
+    /* Run all GPIO tests */
+    platform_unlockRegisters();
+    platform_setupTests();
+    GPIO_TEST_RUN_ALL();
+    platform_tearDownTests();
+
+    /* Cleanup */
+    testTimer_endModule();
+    Pmic_deinit(&g_pmicHandle);
+    platform_deinit();
+
+}
